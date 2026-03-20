@@ -1,17 +1,17 @@
 #!/bin/bash
 # ===================== PBS Resource Configuration (Do not modify) =====================
-#PBS -N bio_info_extract_t5
-#PBS -q fat
-#PBS -l nodes=node01.chess:ppn=200
-#PBS -l walltime=20:00:00
-#PBS -o /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run_limit5.log
-#PBS -e /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_limit5.log
+#PBS -N bio_info_extract_2000
+#PBS -q temp
+#PBS -l nodes=node05.chess:ppn=140
+#PBS -l walltime=240:00:00
+#PBS -o /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run_2000.log
+#PBS -e /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_2000.log
 
 set -euo pipefail
 
 # ===================== Runtime Configuration =====================
 PROJECT_DIR="/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction"
-INPUT_FILE="${PROJECT_DIR}/source_text_report.xlsx"
+INPUT_FILE="${PROJECT_DIR}/source_text_report_2000.xlsx"
 OUTPUT_DIR="${PROJECT_DIR}/out"
 
 # 1. Activate py39 environment
@@ -34,23 +34,23 @@ fi
 
 mkdir -p "${OUTPUT_DIR}/logs"
 
-echo "Running location-based outbreak extraction schema (limit 5 test)..."
+echo "Running location-based outbreak extraction schema (limit 0 test)..."
 echo "Output fields include: location, continent, country, province, original_location, original_country, imported_location, imported_country"
 
 # 4. Run Python script (\ must be the LAST character of each line, NO SPACES AFTER \)
 python main.py \
 --input "${INPUT_FILE}" \
---output-excel "${OUTPUT_DIR}/biometric_extracted_result_limit5.xlsx" \
---output-csv "${OUTPUT_DIR}/biometric_extracted_result_limit5.csv" \
---log-file "${OUTPUT_DIR}/logs/pipeline_limit5.log" \
+--output-excel "${OUTPUT_DIR}/biometric_extracted_result_2000.xlsx" \
+--output-csv "${OUTPUT_DIR}/biometric_extracted_result_2000.csv" \
+--log-file "${OUTPUT_DIR}/logs/pipeline_2000.log" \
 --endpoint "http://159.226.80.101:1045/v1/chat/completions" \
 --model "DeepSeek-V3" \
 --timeout-seconds 600 \
 --max-retries 3 \
 --request-interval-seconds 0.2 \
---limit 5
+--limit 0
 
-echo "Excel output: ${OUTPUT_DIR}/biometric_extracted_result_limit5.xlsx"
-echo "CSV output: ${OUTPUT_DIR}/biometric_extracted_result_limit5.csv"
-echo "Pipeline log: ${OUTPUT_DIR}/logs/pipeline_limit5.log"
-echo "PBS test job (--limit 5) completed successfully."
+echo "Excel output: ${OUTPUT_DIR}/biometric_extracted_result_2000.xlsx"
+echo "CSV output: ${OUTPUT_DIR}/biometric_extracted_result_2000.csv"
+echo "Pipeline log: ${OUTPUT_DIR}/logs/pipeline_2000.log"
+echo "PBS test job (--limit 0) completed successfully."

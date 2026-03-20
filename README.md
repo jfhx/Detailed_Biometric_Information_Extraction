@@ -219,20 +219,20 @@ python main.py
 
 ### window 转linux 系统的命令行
 ```bash
-dos2unix run_bio_info_extract.pbs
-dos2unix run_bio_info_extract_limit5.pbs
+dos2unix run_bio_info_extract_1000.pbs
+dos2unix run_bio_info_extract_gvn.pbs
 ```
 
 试跑（前 5 条 URL）：
 ```bash
 cd /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction
-qsub run_bio_info_extract_limit5.pbs
+qsub run_bio_info_extract_1000.pbs
 ```
 
 全量运行：
 ```bash
 cd /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction
-qsub run_bio_info_extract.pbs
+qsub run_bio_info_extract_gvn.pbs
 ```
 
 如果你想直接在集群登录节点手动运行，也可以使用：
