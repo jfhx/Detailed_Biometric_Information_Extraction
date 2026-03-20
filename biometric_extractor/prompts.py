@@ -25,7 +25,7 @@ SYSTEM_PROMPT = dedent(
 
     Record splitting rule:
     - One URL may produce multiple records.
-    - Each record must represent exactly one active outbreak
+    - Each record must represent exactly one outbreak or event
       location in the `location` field.
     - `infection_num` and `death_num` must describe only the
       counts for that record's `location`.
@@ -164,15 +164,89 @@ def build_user_prompt(
         animal / human,animal.
     19) infection_num and death_num must be pure digits
         without commas or symbols.
-    20) event_type should use source wording if present;
-        otherwise infer from context, such as sporadic case,
-        cluster outbreak, community transmission, or imported
-        case.
-    21) original text must quote concise evidence from body text
+    20) `event_type` must be exactly one of these 7 values and
+        nothing else:
+        - sporadic_case
+        - cluster
+        - outbreak
+        - epidemic
+        - endemic
+        - pandemic
+        - Retrospective/periodic review of outbreak cases
+        Choose exactly one label. Do not invent synonyms,
+        mixtures, or free-text explanations.
+    21) Determine `event_type` for the current record and the
+        current `location`, based on the exact evidence used for
+        this record's counts, dates, and quoted source text.
+        Do not classify the pathogen in general; classify the
+        specific event pattern represented by this record.
+    22) Use these definitions for `event_type`:
+        - `sporadic_case`: isolated, infrequent, irregular case
+          or a few unlinked cases with no clear epidemiological
+          connection and no sign of localized spread.
+        - `cluster`: a small aggregation of epidemiologically
+          linked cases close in time and place, such as within a
+          household, school, workplace, village, or facility;
+          localized signal, often early-stage, narrower than a
+          confirmed outbreak.
+        - `outbreak`: a confirmed acute excess of cases in a
+          clearly defined area over a limited time window;
+          localized event, sharper and more clearly bounded than
+          a cluster.
+        - `epidemic`: sustained above-baseline spread across a
+          broader population or region such as a city, province,
+          or country; wider scope than an outbreak.
+        - `endemic`: stable long-term presence in a place with
+          an expected baseline pattern over time; persistent
+          background transmission rather than a short-term spike.
+        - `pandemic`: epidemic spread across multiple countries
+          or continents with international transmission.
+        - `Retrospective/periodic review of outbreak cases`:
+          cumulative, historical, periodic, or review-style
+          summary of cases across a long time span, repeated
+          seasons, or multiple outbreak episodes, rather than a
+          single bounded acute event.
+    23) Critical distinction for
+        `Retrospective/periodic review of outbreak cases`:
+        - Use it when the record summarizes cumulative cases,
+          deaths, or fatality rates across many months or years,
+          especially phrases like "since 2001", "from 2018 to
+          2025", "to date", "overall", "cumulative", "historical",
+          or article text that reviews many outbreaks together.
+        - Use it when the record is a stage summary, periodic
+          review, or after-action/retrospective synthesis of many
+          cases, not one discrete outbreak window.
+        - Do not label such cumulative summary records as
+          `outbreak`, `cluster`, or `epidemic`, even if the
+          article also discusses a current outbreak elsewhere.
+        - Do not use
+          `Retrospective/periodic review of outbreak cases` for a
+          single acute outbreak that happened in one clearly
+          bounded episode, place, and short time window.
+    24) Practical priority for `event_type`:
+        - First, check whether the evidence for this record is a
+          cumulative or review-style summary over a long period.
+          If yes, choose
+          `Retrospective/periodic review of outbreak cases`.
+        - Otherwise choose among `sporadic_case`, `cluster`,
+          `outbreak`, `epidemic`, `endemic`, and `pandemic`
+          according to transmission scope and time pattern.
+        - For acute spread extent, a rough progression is
+          `sporadic_case` < `cluster` < `outbreak` < `epidemic`
+          < `pandemic`.
+        - `endemic` is not a short-term escalation stage; use it
+          only for long-term stable local presence.
+    25) Example of the required distinction:
+        if the source says "To date, since 2001 Bangladesh has
+        documented 348 NiV disease cases...", then the record
+        built from that cumulative Bangladesh summary should use
+        `Retrospective/periodic review of outbreak cases`, not
+        `outbreak`.
+    26) original text must quote concise evidence from body text
         or table text supporting this record, especially the
         location chain and the counts for the current
         `location`.
-    22) Extract comprehensively. Prefer recall. Do not miss rows
+    27) Extract comprehensively. Prefer recall. Do not miss rows
         in article tables or multiple locations mentioned in
         narrative text.
     """

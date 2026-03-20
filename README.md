@@ -8,6 +8,7 @@
 - 自动抓取网页正文与表格，并过滤导航栏/页脚等噪音
 - 调用内网模型接口：`http://159.226.80.101:1045/v1/chat/completions`
 - 使用严格 JSON 提示词，支持一条 URL 拆分多条 `location` 记录
+- `event_type` 使用固定标准枚举，并强化总结类与单次爆发类的区分
 - 输出 Excel 与 CSV 两份结果
 - 字段统一英文输出
 - 支持日志、异常处理、重试机制
@@ -51,6 +52,75 @@
 - `original_country`：`original_location` 所属国家。优先使用原文，没有时才根据 `original_location` 保守推断。
 - `imported_location`：由当前 `location` 继续传播到的下游地区。如果原文没有明确提及，就留空。
 - `imported_country`：`imported_location` 所属国家。优先使用原文，没有时才根据 `imported_location` 保守推断。
+
+## event_type 标准定义
+
+`event_type` 字段只能输出以下 7 个标准值之一，不能输出别名、自由文本或自造标签：
+
+- `sporadic_case`
+- `cluster`
+- `outbreak`
+- `epidemic`
+- `endemic`
+- `pandemic`
+- `Retrospective/periodic review of outbreak cases`
+
+### event_type 各类型含义
+
+- `sporadic_case`：散发病例。指个别、零散、无明显流行病学关联的病例，未形成局部传播。
+- `cluster`：聚集性病例。指在较小空间、较短时间内出现相互关联的多个病例，例如家庭、学校、医院、村庄内聚集，但范围通常比正式暴发更小。
+- `outbreak`：暴发。指在明确地区和有限时间窗口内，病例数明显高于预期，属于一次相对清晰、边界明确的急性公共卫生事件。
+- `epidemic`：流行。指超出基线水平的传播已经扩展到更大人群或更广地区，例如城市、省、国家层面的持续扩散。
+- `endemic`：地方性流行 / 地方病。指疾病长期稳定存在于某地，围绕相对可预期的基线波动，而不是一次短期突然升高的事件。
+- `pandemic`：大流行。指跨国界、跨洲传播，涉及多个国家或大陆的广泛传播。
+- `Retrospective/periodic review of outbreak cases`：总结性阶段性回顾总结爆发病例案件。指对较长时间跨度内多个病例、多个季节、多个阶段或多轮暴发进行累计式、历史性、阶段性或回顾性总结，而不是单次、短时间窗口内的独立急性事件。
+
+### event_type 判断优先级
+
+- 每条记录的 `event_type` 必须针对当前这条记录本身的 `location`、`infection_num`、`death_num`、时间范围和原文证据来判断。
+- 不要根据病原体的一般流行特征去判断，而要根据当前记录对应的具体事件模式来判断。
+- 对急性传播事件，可以粗略理解为严重程度或传播范围通常从低到高为：
+  - `sporadic_case` < `cluster` < `outbreak` < `epidemic` < `pandemic`
+- `endemic` 不属于一次次短期升级链条，而是长期稳定存在的背景状态。
+- 如果当前记录本质上是长期累计、阶段性回顾、历史总结或多轮暴发汇总，应优先判为 `Retrospective/periodic review of outbreak cases`，而不是 `outbreak`。
+
+### Retrospective/periodic review of outbreak cases 与 outbreak 的关键区别
+
+- 属于 `Retrospective/periodic review of outbreak cases` 的典型特征：
+  - 原文在总结较长时间范围内的累计病例或死亡，例如 `since 2001`、`from 2018 to 2025`、`to date`、`overall`、`cumulative`、`historical review`
+  - 原文是在做阶段性汇总、定期回顾、事后复盘、历史累计总结
+  - 记录反映的是多个时期、多个波次、多个暴发案例的合并总结，而不是单次急性事件
+- 不属于 `Retrospective/periodic review of outbreak cases` 的情况：
+  - 文章描述的是某个明确地点、明确时间窗口内突然出现的病例聚集
+  - 文章描述的是单次、边界清晰的局部暴发事件
+  - 这种情况下通常应判为 `cluster`、`outbreak` 或更高层级的 `epidemic`
+
+### WHO 示例说明
+
+例如这个链接：
+
+- `https://www.who.int/emergencies/disease-outbreak-news/item/2026-DON594`
+
+文中提到：
+
+- `To date, since 2001 Bangladesh has documented 348 NiV disease cases, including 250 deaths, corresponding to an overall case fatality rate of 72%.`
+
+这句话表达的是：自 2001 年以来到当前时间点，孟加拉国在很长时间跨度内累计记录的病例总数。这类证据不是一次短时间窗口中的单次暴发，而是长期累计总结。
+
+因此，如果某条记录是根据这句累计总结生成的，那么该记录的 `event_type` 应标注为：
+
+- `Retrospective/periodic review of outbreak cases`
+
+而不应标注为：
+
+- `outbreak`
+- `cluster`
+- `epidemic`
+
+如果同一篇文章里同时存在“当前一次具体暴发事件”和“历史累计总结”，那么应该按记录分别判断：
+
+- 针对当前急性事件生成的记录，使用对应的急性事件类型，例如 `outbreak`
+- 针对多年累计汇总生成的记录，使用 `Retrospective/periodic review of outbreak cases`
 
 ## infection_num / death_num 对应规则
 

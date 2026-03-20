@@ -10,31 +10,57 @@ def build_args():
         description=(
             "Extract biological outbreak information from URLs listed in "
             "Excel into location-based outbreak records, using local "
-            "DeepSeek-V3 endpoint."
+            "DeepSeek-V3 endpoint, with standardized event_type "
+            "classification labels."
         )
     )
     parser.add_argument(
         "--input",
         type=str,
-        default=r"C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\source_text_report.xlsx",
-        help="Input Excel path (must include columns: data_source, source_url).",
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction"
+            "/source_text_report.xlsx"
+        ),
+        help=(
+            "Input Excel path (must include columns: data_source, "
+            "source_url)."
+        ),
     )
     parser.add_argument(
         "--output-excel",
         type=str,
-        default=r"C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\biometric_extracted_result.xlsx",
-        help="Output Excel path for location-based outbreak records.",
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction/out"
+            "/biometric_extracted_result.xlsx"
+        ),
+        help=(
+            "Output Excel path for location-based outbreak records "
+            "with standardized event_type values."
+        ),
     )
     parser.add_argument(
         "--output-csv",
         type=str,
-        default=r"C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\biometric_extracted_result.csv",
-        help="Output CSV path for location-based outbreak records.",
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction/out"
+            "/biometric_extracted_result.csv"
+        ),
+        help=(
+            "Output CSV path for location-based outbreak records "
+            "with standardized event_type values."
+        ),
     )
     parser.add_argument(
         "--log-file",
         type=str,
-        default=r"C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\logs\pipeline.log",
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction/out/logs"
+            "/pipeline.log"
+        ),
         help="Log file path.",
     )
     parser.add_argument(

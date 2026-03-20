@@ -6,6 +6,11 @@ from typing import Any, Dict, List
 from biometric_extractor.models import EMPTY_RECORD, OUTPUT_COLUMNS
 
 
+CANONICAL_RETROSPECTIVE_EVENT_TYPE = (
+    "Retrospective/periodic review of outbreak cases"
+)
+
+
 def parse_llm_records(raw_content: str) -> List[Dict[str, str]]:
     parsed = _parse_json_flexible(raw_content)
 
@@ -36,7 +41,11 @@ def parse_llm_records(raw_content: str) -> List[Dict[str, str]]:
     return deduped
 
 
-def build_empty_result(data_source: str, source_url: str, reason: str = "") -> Dict[str, str]:
+def build_empty_result(
+    data_source: str,
+    source_url: str,
+    reason: str = "",
+) -> Dict[str, str]:
     row = dict(EMPTY_RECORD)
     row["data_source"] = data_source
     row["source_url"] = source_url
@@ -121,6 +130,7 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
 
     row["infection_num"] = _digits_only(row["infection_num"])
     row["death_num"] = _digits_only(row["death_num"])
+    row["event_type"] = _normalize_event_type(row["event_type"])
 
     _fill_date_parts(
         row,
@@ -145,6 +155,46 @@ def _digits_only(value: str) -> str:
         return ""
     digits = re.sub(r"\D", "", value)
     return digits
+
+
+def _normalize_event_type(value: str) -> str:
+    if not value:
+        return ""
+
+    compact = re.sub(r"[\s_-]+", " ", value).strip()
+    lowered = compact.lower()
+
+    if lowered == CANONICAL_RETROSPECTIVE_EVENT_TYPE.lower():
+        return CANONICAL_RETROSPECTIVE_EVENT_TYPE
+
+    retrospective_signals = [
+        "retrospective",
+        "periodic review",
+        "review of outbreak cases",
+        "outbreak review",
+        "historical review",
+        "historical summary",
+        "cumulative review",
+        "cumulative summary",
+        "summary of outbreak cases",
+    ]
+    if any(signal in lowered for signal in retrospective_signals):
+        return CANONICAL_RETROSPECTIVE_EVENT_TYPE
+
+    if "sporadic" in lowered or "isolated case" in lowered:
+        return "sporadic_case"
+    if "pandemic" in lowered:
+        return "pandemic"
+    if "endemic" in lowered:
+        return "endemic"
+    if "epidemic" in lowered:
+        return "epidemic"
+    if "outbreak" in lowered:
+        return "outbreak"
+    if "cluster" in lowered:
+        return "cluster"
+
+    return compact
 
 
 def _fill_date_parts(
