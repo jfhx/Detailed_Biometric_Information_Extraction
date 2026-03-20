@@ -9,9 +9,10 @@ def build_args():
     parser = ArgumentParser(
         description=(
             "Extract biological outbreak information from URLs listed in "
-            "Excel into location-based outbreak records, using local "
-            "DeepSeek-V3 endpoint, with standardized event_type "
-            "classification labels."
+            "Excel into location-based outbreak records, where `location` "
+            "may be a single place or a semicolon-joined aggregated multi-"
+            "place scope, using local DeepSeek-V3 endpoint, with "
+            "standardized event_type classification labels."
         )
     )
     parser.add_argument(
@@ -37,7 +38,8 @@ def build_args():
         ),
         help=(
             "Output Excel path for location-based outbreak records "
-            "with standardized event_type values."
+            "with standardized event_type values and semicolon-joined "
+            "multi-place locations when counts are aggregated."
         ),
     )
     parser.add_argument(
@@ -50,7 +52,8 @@ def build_args():
         ),
         help=(
             "Output CSV path for location-based outbreak records "
-            "with standardized event_type values."
+            "with standardized event_type values and semicolon-joined "
+            "multi-place locations when counts are aggregated."
         ),
     )
     parser.add_argument(

@@ -122,11 +122,7 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
                 if alias_value not in ("", None):
                     value = alias_value
                     break
-        row[col] = (
-            ""
-            if value is None
-            else _to_english_text(str(value).strip())
-        )
+        row[col] = _normalize_output_value(col, value)
 
     row["infection_num"] = _digits_only(row["infection_num"])
     row["death_num"] = _digits_only(row["death_num"])
@@ -148,6 +144,86 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
     )
 
     return row
+
+
+def _normalize_output_value(col: str, value: Any) -> str:
+    if value is None:
+        return ""
+
+    if col == "location":
+        return _normalize_location_value(value)
+
+    if col == "host":
+        return _normalize_host_value(value)
+
+    return _to_english_text(str(value).strip())
+
+
+def _normalize_location_value(value: Any) -> str:
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            text = _to_english_text(str(item).strip())
+            if text:
+                parts.append(text)
+        return _normalize_location_text("; ".join(parts))
+
+    return _normalize_location_text(_to_english_text(str(value).strip()))
+
+
+def _normalize_host_value(value: Any) -> str:
+    if isinstance(value, list):
+        raw_parts = [str(item).strip() for item in value if str(item).strip()]
+    else:
+        text = _to_english_text(str(value).strip())
+        text = text.replace("，", ",").replace("、", ",")
+        text = text.replace("；", ";").replace("﹔", ";")
+        text = re.sub(r"\s*[\r\n]+\s*", ",", text)
+        text = re.sub(r"\s*;\s*", ",", text)
+        text = re.sub(r"\s*/\s*", ",", text)
+        raw_parts = [part.strip() for part in text.split(",") if part.strip()]
+
+    normalized_parts = []
+    seen = set()
+    for part in raw_parts:
+        normalized = _normalize_host_part(part)
+        if not normalized:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized_parts.append(normalized)
+
+    return ",".join(normalized_parts)
+
+
+def _normalize_host_part(part: str) -> str:
+    cleaned = _to_english_text(part)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,;")
+    lowered = cleaned.lower()
+
+    if lowered in {"human", "humans", "person", "persons", "people"}:
+        return "human"
+
+    if lowered in {"animal", "animals"}:
+        return "animal"
+
+    return cleaned
+
+
+def _normalize_location_text(text: str) -> str:
+    if not text:
+        return ""
+
+    cleaned = text.replace("；", ";").replace("﹔", ";")
+    cleaned = re.sub(r"\s*[\r\n]+\s*", "; ", cleaned)
+    cleaned = re.sub(r"\s*;\s*", "; ", cleaned)
+    cleaned = re.sub(r"(?:;\s*){2,}", "; ", cleaned)
+    cleaned = re.sub(r"^;\s*", "", cleaned)
+    cleaned = re.sub(r"\s*;$", "", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip()
 
 
 def _digits_only(value: str) -> str:

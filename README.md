@@ -7,7 +7,7 @@
 - 输入文件必须包含列：`data_source`、`source_url`
 - 自动抓取网页正文与表格，并过滤导航栏/页脚等噪音
 - 调用内网模型接口：`http://159.226.80.101:1045/v1/chat/completions`
-- 使用严格 JSON 提示词，支持一条 URL 拆分多条 `location` 记录
+- 使用严格 JSON 提示词，支持一条 URL 输出单条或多条 `location` 记录，并严格区分“多地区共用一个汇总人数”的单条记录与“多地区分别有人数”的多条记录
 - `event_type` 使用固定标准枚举，并强化总结类与单次爆发类的区分
 - 输出 Excel 与 CSV 两份结果
 - 字段统一英文输出
@@ -45,6 +45,10 @@
 ## 新字段含义
 
 - `location`：本条记录的病毒发生地/疫情发生地。必须尽量严格按照原文地点来写，可以是小地区、城市、省份、国家、边境地区、农场、营地等，不一定是国家。
+- `location` 可以是单个发生地区，也可以是多个发生地区。
+- 如果原文提到多个小地区，但感染人数和死亡人数只是这些小地区合在一起的一个汇总总数，没有分别给出每个小地区自己的感染人数/死亡人数，那么这几个小地区必须保留在**同一条记录**里，并在 `location` 中用分号 `;` 隔开。
+- 如果原文分别给出了多个发生地区各自对应的感染人数和死亡人数，或者语义上明确支持它们是彼此独立的地点级事件记录，那么应拆分为多条记录，每条记录写一个地点自己的数据。
+- 如果原文明确提到了某个发生地区，但没有给出该地区单独的感染人数/死亡人数，而该地区又应被保留为独立记录，那么该条记录的 `infection_num`、`death_num` 可以留空。
 - `continent`：`location` 对应的大洲。优先使用原文；如果原文只给了小地区，模型只能在把握很高时再做推断。
 - `country`：`location` 对应的国家。优先使用原文；若原文未直说，只能依据 `location` 做保守推断。
 - `province`：`location` 对应的省/州/更细一级行政区。优先使用原文，没有就留空。
@@ -125,6 +129,7 @@
 ## infection_num / death_num 对应规则
 
 - `infection_num` 和 `death_num` 只对应当前这一条记录里的 `location`。
+- 如果当前这条记录的 `location` 是由多个小地区用分号 `;` 拼接而成，那么 `infection_num` 和 `death_num` 对应的是这个**整条分号拼接 location 的汇总总数**，不是每个小地区各自都有这组人数。
 - 它们默认**不对应** `original_location` 和 `imported_location`。
 - 如果原文对 `original_location` 或 `imported_location` 也单独给出了感染数/死亡数，或者该地点应被单独当作一个发生地视角保留，那么要**新增一条记录**，并把那个地点放到新的 `location` 字段中。
 - 如果某个链路地点需要保留为独立记录，但原文没有给它单独的人数，则该记录的 `infection_num`、`death_num` 可以为空。
@@ -132,13 +137,27 @@
 ## 多条记录拆分逻辑
 
 - 一条 URL 可以输出多条记录。
-- 每条记录都必须只有一个明确的 `location`。
+- 每条记录都必须只有一个明确的 `location` 范围，但这个 `location` 范围可以是一个地点，也可以是多个共用同一组汇总人数的小地点组合。
 - 同一条记录中的 `infection_num`、`death_num` 必须与该 `location` 一一对应。
+- 如果原文只是列出了多个小地区，并给出了这些小地区合并后的感染人数/死亡人数总和，那么应只保留**一条记录**，把这些小地区写进同一个 `location` 字段，并用分号 `;` 隔开。
+- 这种“多个小地区 + 一个汇总总数”的情况，**不能**机械拆分成多条记录，否则会把同一组汇总人数错误地重复到多个小地区上，导致总数失真。
+- 只有当原文对不同地点分别给出了感染人数/死亡人数，或者明确可以判断为地点级的独立事件时，才拆分成多条记录。
+- 如果多个地点里，只有一部分地点在原文中给出了单独人数，另一部分地点没有给出，那么有单独人数的地点照常填写；没有单独人数但又应保留为独立记录的地点，其 `infection_num`、`death_num` 留空即可。
 - 如果文章描述了传播链，例如 `A -> B -> C`：
   - 第一条记录可以是 `location=B`，`original_location=A`，`imported_location=C`
   - 第二条记录可以是 `location=A`，`original_location=A`，`imported_location=B`
   - 第三条记录可以是 `location=C`，`original_location=A`，`imported_location=` 空
 - 如果某个 URL 里有多个发生地、多个输入地、多个输出地，就继续拆分，直到每条记录里的 `location` 与 `infection_num`、`death_num` 关系清晰。
+
+### `location` 汇总场景示例
+
+- 原文：`As of 25 January 2026, a cumulative total of 14 confirmed cases, including nine deaths ... were reported ... from Jinka, Malle and Dasench woredas in South Ethiopia Region and Hawassa in Sidama Region.`
+- 正确理解：这句话给出的是多个小地区的**合并汇总病例和死亡总数**，不是每个小地区各自的病例和死亡。
+- 因此应输出为**一条记录**，例如：
+  - `location = Jinka, South Ethiopia Region; Malle, South Ethiopia Region; Dasench woredas, South Ethiopia Region; Hawassa, Sidama Region`
+  - `infection_num = 14`
+  - `death_num = 9`
+- 不应拆成四条都写 `14` 和 `9` 的记录。
 
 ## 网络说明
 

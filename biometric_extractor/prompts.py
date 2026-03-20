@@ -26,9 +26,19 @@ SYSTEM_PROMPT = dedent(
     Record splitting rule:
     - One URL may produce multiple records.
     - Each record must represent exactly one outbreak or event
-      location in the `location` field.
+      location scope in the `location` field.
+    - `location` may contain one place or multiple small places
+      separated by semicolons when the source reports only one
+      aggregated infection/death total across those places and
+      does not provide separate counts for each place.
     - `infection_num` and `death_num` must describe only the
       counts for that record's `location`.
+    - Never duplicate one aggregated total into multiple records
+      for each small place when the source only gives a combined
+      total for all of them together.
+    - Split into multiple records only when the source gives
+      location-specific counts or otherwise clearly describes
+      separate place-level events that should stand alone.
     - If a report describes the outbreak location, the
       infection-origin location, and the downstream imported
       location as separate places, create separate records
@@ -102,44 +112,65 @@ def build_user_prompt(
        faithfully as possible. It can be a small area, city,
        province, country, border region, camp, farm, district,
        or any other place expression. Do not simplify it unless
-       the source itself is simple.
-    7) `continent`, `country`, and `province` are normalized
-       geographic breakdowns of `location`. Use explicit source
-       evidence when available. If the article only gives a
-       smaller place name, infer its continent/country/province
-       conservatively and only when the mapping is reliable. If
-       uncertain, leave empty instead of guessing.
-    8) `original_location` is the infection origin location,
-       meaning where the infection was acquired before the cases
-       in `location` were detected or reported. It may differ
-       from `location`.
-    9) `original_country` is the country corresponding to
-       `original_location`. Use the article if stated;
-       otherwise infer conservatively from `original_location`
-       only when reliable.
-    10) `imported_location` is the downstream spread or
+       the source itself is simple. `location` can contain a
+       single place or multiple places.
+    7) If the article reports one aggregated outbreak total for
+       multiple small places together, and does not provide
+       separate infection/death counts for each place, keep them
+       in ONE record and write all those places into `location`
+       separated by semicolons `;`. In that case the single
+       `infection_num` and `death_num` are the shared total for
+       the whole semicolon-joined `location` field.
+    8) If the article separately states multiple places and also
+       separately states the infection/death counts for each
+       place, or otherwise clearly supports separate place-level
+       event records, then split into multiple records. Each
+       record should contain only that place's own counts. If a
+       place is clearly a standalone event location but the
+       article gives no counts for that place, leave
+       `infection_num` and `death_num` empty for that place.
+    9) Never mechanically split one sentence into multiple
+       records just because it lists several places. The deciding
+       factor is whether the counts are place-specific or are one
+       combined total for all listed places together.
+    10) When multiple places are kept in one `location` field,
+        separate them with semicolons `;` and keep the wording in
+        English. Example style: `Jinka; Malle; Dasench woredas,
+        South Ethiopia Region; Hawassa, Sidama Region`.
+    11) `continent`, `country`, and `province` are normalized
+        geographic breakdowns of `location`. Use explicit source
+        evidence when available. If the article only gives a
+        smaller place name, infer its continent/country/province
+        conservatively and only when the mapping is reliable. If
+        uncertain, leave empty instead of guessing.
+    12) `original_location` is the infection origin location,
+        meaning where the infection was acquired before the cases
+        in `location` were detected or reported. It may differ
+        from `location`.
+    13) `original_country` is the country corresponding to
+        `original_location`. Use the article if stated;
+        otherwise infer conservatively from `original_location`
+        only when reliable.
+    14) `imported_location` is the downstream spread or
         destination location infected from the current
         `location`, if the source explicitly supports such
         onward spread.
-    11) `imported_country` is the country corresponding to
+    15) `imported_country` is the country corresponding to
         `imported_location`. Use the article if stated;
         otherwise infer conservatively from `imported_location`
         only when reliable.
-    12) `infection_num` and `death_num` must describe only the
+    16) `infection_num` and `death_num` must describe only the
         counts for the current record's `location`. They do not
         automatically belong to `original_location` or
         `imported_location` unless that place is itself emitted
         as a separate record with that place copied into
         `location`.
-    13) If the article gives counts for multiple distinct places
-        in one transmission chain, emit multiple records so that
-        each record has one clear `location` to one
-        `infection_num` / `death_num` pair. This includes the
-        main outbreak location, the origin location, and the
-        imported destination location whenever the source
-        provides enough evidence to represent them as separate
-        location-level records.
-    14) For chained spread, preserve the chain logic across
+    17) If the article gives counts for multiple distinct places
+        in one transmission chain, emit multiple records only
+        when the source supports those counts as separate
+        place-level facts. If several listed places share only
+        one combined total, keep them together in one record.
+    18) For chained spread, preserve the chain logic across
         records. Example: if A infected B and B infected C, then
         one valid set is: record for B with `original_location`
         A and `imported_location` C; record for A with
@@ -147,24 +178,37 @@ def build_user_prompt(
         for C with `original_location` A and empty
         `imported_location` when no further destination is
         stated.
-    15) If the article mentions `original_location` or
+    19) If the article mentions `original_location` or
         `imported_location` but gives no infection/death counts
         for that place as a standalone location record, you may
         still create the related location record only when the
         source clearly supports that place as part of the
         outbreak chain; in that case leave `infection_num` and
         `death_num` empty.
-    16) start_date/end_date can be YYYY-MM-DD, YYYY-MM,
+    20) start_date/end_date can be YYYY-MM-DD, YYYY-MM,
         or YYYY depending on available evidence.
-    17) start_date_year/start_date_month/start_date_day and
+    21) start_date_year/start_date_month/start_date_day and
         end_date_year/end_date_month/end_date_day should be
         numeric strings when available.
-    18) host must be in English and as specific as the source
-        allows. If only generic class appears, use human /
-        animal / human,animal.
-    19) infection_num and death_num must be pure digits
+    22) `host` means the infected host(s), and it must be in
+        English while following the source text as strictly as
+        possible.
+        - If the article indicates infected people or human
+          cases, write `human`.
+        - If the article gives a specific infected animal name,
+          copy that host name in English as stated in the source,
+          such as `dogs`, `goats`, `swine`, `wild birds`,
+          `bats`, `monkeys`.
+        - If the article only indicates a generic animal host
+          without a specific animal name, write `animal`.
+        - If both humans and animals are infected, include all
+          mentioned hosts in `host`, separated by English commas,
+          for example `human,dogs` or `human,bats`.
+        - Do not invent a more specific host than the source
+          provides.
+    23) infection_num and death_num must be pure digits
         without commas or symbols.
-    20) `event_type` must be exactly one of these 7 values and
+    24) `event_type` must be exactly one of these 7 values and
         nothing else:
         - sporadic_case
         - cluster
@@ -175,12 +219,12 @@ def build_user_prompt(
         - Retrospective/periodic review of outbreak cases
         Choose exactly one label. Do not invent synonyms,
         mixtures, or free-text explanations.
-    21) Determine `event_type` for the current record and the
+    25) Determine `event_type` for the current record and the
         current `location`, based on the exact evidence used for
         this record's counts, dates, and quoted source text.
         Do not classify the pathogen in general; classify the
         specific event pattern represented by this record.
-    22) Use these definitions for `event_type`:
+    26) Use these definitions for `event_type`:
         - `sporadic_case`: isolated, infrequent, irregular case
           or a few unlinked cases with no clear epidemiological
           connection and no sign of localized spread.
@@ -206,7 +250,7 @@ def build_user_prompt(
           summary of cases across a long time span, repeated
           seasons, or multiple outbreak episodes, rather than a
           single bounded acute event.
-    23) Critical distinction for
+    27) Critical distinction for
         `Retrospective/periodic review of outbreak cases`:
         - Use it when the record summarizes cumulative cases,
           deaths, or fatality rates across many months or years,
@@ -223,7 +267,7 @@ def build_user_prompt(
           `Retrospective/periodic review of outbreak cases` for a
           single acute outbreak that happened in one clearly
           bounded episode, place, and short time window.
-    24) Practical priority for `event_type`:
+    28) Practical priority for `event_type`:
         - First, check whether the evidence for this record is a
           cumulative or review-style summary over a long period.
           If yes, choose
@@ -236,19 +280,30 @@ def build_user_prompt(
           < `pandemic`.
         - `endemic` is not a short-term escalation stage; use it
           only for long-term stable local presence.
-    25) Example of the required distinction:
+    29) Example of the required distinction:
         if the source says "To date, since 2001 Bangladesh has
         documented 348 NiV disease cases...", then the record
         built from that cumulative Bangladesh summary should use
         `Retrospective/periodic review of outbreak cases`, not
         `outbreak`.
-    26) original text must quote concise evidence from body text
+    30) Example of the required `location` distinction:
+        if the source says a cumulative total of 14 confirmed
+        cases and 9 deaths were reported from Jinka, Malle and
+        Dasench woredas in South Ethiopia Region and Hawassa in
+        Sidama Region, and the article does not provide separate
+        counts for each place, then output ONE record with
+        `location` containing all those places separated by
+        semicolons, and keep `infection_num=14`, `death_num=9`.
+        Do not create four duplicated records with the same
+        totals.
+    31) original text must quote concise evidence from body text
         or table text supporting this record, especially the
         location chain and the counts for the current
         `location`.
-    27) Extract comprehensively. Prefer recall. Do not miss rows
+    32) Extract comprehensively. Prefer recall. Do not miss rows
         in article tables or multiple locations mentioned in
-        narrative text.
+        narrative text, but do not over-split aggregated
+        multi-place counts into repeated records.
     """
 
     prompt = f"""
