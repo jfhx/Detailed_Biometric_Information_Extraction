@@ -1,6 +1,6 @@
 # 详细生物信息提取项目
 
-本项目用于从 `source_text_report.xlsx` 中读取 `source_url` 链接，抓取网页正文和正文表格内容，调用本地 `DeepSeek-V3` 模型接口进行结构化抽取，并输出英文结果表。
+本项目用于从 `source_text_report_gvn.xlsx` 中读取 `source_url` 链接（也支持通过命令行指定其他输入文件），抓取网页正文和正文表格内容，调用本地 `DeepSeek-V3` 模型接口进行结构化抽取，并输出英文结果表与运行状态表。
 
 ## 项目功能
 
@@ -9,25 +9,27 @@
 - 调用内网模型接口：`http://159.226.80.101:1045/v1/chat/completions`
 - 使用严格 JSON 提示词，支持一条 URL 输出单条或多条 `location` 记录，并严格区分“多地区共用一个汇总人数”的单条记录与“多地区分别有人数”的多条记录
 - `event_type` 使用固定标准枚举，并强化总结类与单次爆发类的区分
-- 输出 Excel 与 CSV 两份结果
+- 输出结果 Excel、结果 CSV、运行状态 Excel、运行状态 CSV 四份文件
 - 字段统一英文输出
-- 支持日志、异常处理、重试机制
+- 支持日志、异常处理、失败原因汇总、重试机制
+- 支持根据 URL 自动推断运行状态表中的`数据类型`（结构化/半结构化/非结构化）和`调取方式`（爬取/API），也支持手动覆盖
+- 支持统计空 `pathogen_old` 记录数、输出文件大小和总耗时
 
 ## 输出字段
 
 - `data_source`
 - `source_url`
 - `pathogen_type`
-- `pathogen`
+- `pathogen_old`
 - `subtype`
 - `location`
 - `continent`
-- `country`
-- `province`
+- `country_old`
+- `province_old`
 - `original_location`
-- `original_country`
+- `original_country_old`
 - `imported_location`
-- `imported_country`
+- `imported_country_old`
 - `start_date`
 - `start_date_year`
 - `start_date_month`
@@ -42,7 +44,10 @@
 - `event_type`
 - `original text`
 
-## 新字段含义
+## 核心字段含义
+
+- `pathogen_old`：模型直接从原文抽取的病原体原始文本，当前阶段保留原始命名，不在流水线内二次标准化。
+- `country_old`、`province_old`、`original_country_old`、`imported_country_old`：模型直接抽取到的国家/省级行政区原始字段，保留原文语义，因此统一加 `_old` 后缀。
 
 - `location`：本条记录的病毒发生地/疫情发生地。必须尽量严格按照原文地点来写，可以是小地区、城市、省份、国家、边境地区、农场、营地等，不一定是国家。
 - `location` 可以是单个发生地区，也可以是多个发生地区。
@@ -50,12 +55,12 @@
 - 如果原文分别给出了多个发生地区各自对应的感染人数和死亡人数，或者语义上明确支持它们是彼此独立的地点级事件记录，那么应拆分为多条记录，每条记录写一个地点自己的数据。
 - 如果原文明确提到了某个发生地区，但没有给出该地区单独的感染人数/死亡人数，而该地区又应被保留为独立记录，那么该条记录的 `infection_num`、`death_num` 可以留空。
 - `continent`：`location` 对应的大洲。优先使用原文；如果原文只给了小地区，模型只能在把握很高时再做推断。
-- `country`：`location` 对应的国家。优先使用原文；若原文未直说，只能依据 `location` 做保守推断。
-- `province`：`location` 对应的省/州/更细一级行政区。优先使用原文，没有就留空。
+- `country_old`：`location` 对应的国家原始抽取值。优先使用原文；若原文未直说，只能依据 `location` 做保守推断。
+- `province_old`：`location` 对应的省/州/更细一级行政区原始抽取值。优先使用原文，没有就留空。
 - `original_location`：感染初始地区，即病例在当前 `location` 被报告前，最初感染发生的地点。
-- `original_country`：`original_location` 所属国家。优先使用原文，没有时才根据 `original_location` 保守推断。
+- `original_country_old`：`original_location` 所属国家原始抽取值。优先使用原文，没有时才根据 `original_location` 保守推断。
 - `imported_location`：由当前 `location` 继续传播到的下游地区。如果原文没有明确提及，就留空。
-- `imported_country`：`imported_location` 所属国家。优先使用原文，没有时才根据 `imported_location` 保守推断。
+- `imported_country_old`：`imported_location` 所属国家原始抽取值。优先使用原文，没有时才根据 `imported_location` 保守推断。
 
 ## event_type 标准定义
 
@@ -165,6 +170,37 @@
 - 运行前请确认代理（如 Clash）不会影响内网访问。
 - 脚本会访问 `source_url` 中的网页，请确保运行节点可访问这些网址。
 
+## 运行状态表
+
+每次运行除结果表外，还会额外生成：
+
+- `out/extraction_runtime_status.xlsx`
+- `out/extraction_runtime_status.csv`
+
+运行状态表用于前端或批处理任务概览，当前包含以下字段：
+
+- `数据源`
+- `数据类型`
+- `调取方式`
+- `状态`
+- `状态说明`
+- `开始时间`
+- `结束时间`
+- `用时`
+- `当前下载量`
+- `提取前（原始链接数量）`
+- `提取后数量`
+- `异常数（pathogen_old为空）`
+- `标准化记录数量`
+
+其中：
+
+- `状态` 可能为：`提取开始`、`提取成功`、`部分成功`、`提取失败`
+- `状态说明` 会汇总失败原因，例如网页正文为空、模型无可解析记录、模型调用重试失败、请求超时等
+- `数据类型` 默认根据 URL 自动推断为 `结构化`、`半结构化`、`非结构化`
+- `调取方式` 默认根据 URL 自动推断为 `爬取` 或 `API`
+- 如需手工指定，可使用 `--record-data-type` 和 `--record-access-method`
+
 ## 本地安装与运行
 
 安装依赖：
@@ -182,7 +218,7 @@ python main.py --limit 5
 显式指定输出文件的本地运行命令：
 
 ```bash
-python main.py --limit 5 --output-excel out/biometric_extracted_result.xlsx --output-csv out/biometric_extracted_result.csv --log-file out/logs/pipeline.log --endpoint http://159.226.80.101:1045/v1/chat/completions --model DeepSeek-V3
+python main.py --limit 5 --input source_text_report_gvn.xlsx --output-excel out/biometric_extracted_result.xlsx --output-csv out/biometric_extracted_result.csv --log-file out/logs/pipeline.log --status-excel out/extraction_runtime_status.xlsx --status-csv out/extraction_runtime_status.csv --endpoint http://159.226.80.101:1045/v1/chat/completions --model DeepSeek-V3 --timeout-seconds 600 --max-retries 3
 ```
 
 全量运行：
@@ -193,27 +229,47 @@ python main.py
 
 
 
+如果需要手工覆盖运行状态表中的来源类别，也可以追加：
+
+```bash
+python main.py --record-data-type unstructured --record-access-method crawl
+```
+
+本地默认输入文件：
+
+- `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\source_text_report_gvn.xlsx`
+
 本地输出默认在：
 
 - `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\biometric_extracted_result.xlsx`
 - `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\biometric_extracted_result.csv`
+- `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\extraction_runtime_status.xlsx`
+- `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\extraction_runtime_status.csv`
 - `C:\Users\imcas\Desktop\Detailed_Biometric_Information_Extraction\out\logs\pipeline.log`
 
 
 
 ## 集群 PBS 运行
 
-已提供两个 PBS 脚本文件：
+当前仓库中常用的 PBS 脚本文件有：
 
-- `run_bio_info_extract_limit5.pbs`：先试跑前 5 条 URL（用于验收提取质量）
-- `run_bio_info_extract.pbs`：全量运行
+- `run_bio_info_extract_1000.pbs`：使用 `source_text_report_1000.xlsx`
+- `run_bio_info_extract_gvn.pbs`：使用 `source_text_report_gvn.xlsx`
 
-脚本使用的关键路径：
+其中，提交服务器全量运行时，当前使用的是 `run_bio_info_extract_gvn.pbs`。该脚本的关键配置为：
 
-- 项目目录：`/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction`
-- 输入文件：`/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/source_text_report.xlsx`
-- 标准输出日志：`/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run.log`
-- 错误日志：`/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error.log`
+- PBS 队列：`fat`
+- 计算节点：`node01.chess:ppn=10`
+- 最长运行时间：`100:00:00`
+- 项目目录：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction`
+- 输入文件：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/source_text_report_gvn.xlsx`
+- 标准输出日志：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_run_gvn.log`
+- 错误日志：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_error_gvn.log`
+- 结果输出：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.xlsx`
+- 结果 CSV：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.csv`
+- 运行状态表：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.xlsx`
+- 运行状态 CSV：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.csv`
+- 运行日志：`/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/logs/pipeline_gvn.log`
 
 
 
@@ -223,29 +279,31 @@ dos2unix run_bio_info_extract_1000.pbs
 dos2unix run_bio_info_extract_gvn.pbs
 ```
 
-试跑（前 5 条 URL）：
+试跑（1000 条数据子集）：
 ```bash
-cd /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction
+cd /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction
 qsub run_bio_info_extract_1000.pbs
 ```
 
 全量运行：
 ```bash
-cd /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction
+cd /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction
 qsub run_bio_info_extract_gvn.pbs
 ```
 
 如果你想直接在集群登录节点手动运行，也可以使用：
 ```bash
-cd /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction
+cd /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction
 python main.py \
-  --input /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/source_text_report.xlsx \
-  --output-excel /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result.xlsx \
-  --output-csv /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result.csv \
-  --log-file /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/logs/pipeline.log \
+  --input /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/source_text_report_gvn.xlsx \
+  --output-excel /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.xlsx \
+  --output-csv /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.csv \
+  --log-file /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/logs/pipeline_gvn.log \
+  --status-excel /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.xlsx \
+  --status-csv /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.csv \
   --endpoint http://159.226.80.101:1045/v1/chat/completions \
   --model DeepSeek-V3 \
-  --timeout-seconds 180 \
+  --timeout-seconds 600 \
   --max-retries 3 \
   --request-interval-seconds 0.2
 ```
@@ -259,16 +317,19 @@ qstat -u sunxiuqiang
 
 查看日志：
 ```bash
-tail -f /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run.log
-tail -f /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error.log
-tail -f /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run_limit5.log
-tail -f /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_limit5.log
+tail -f /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_run_gvn.log
+tail -f /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_error_gvn.log
+tail -f /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/logs/pipeline_gvn.log
+tail -f /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_run_1000.log
+tail -f /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_error_1000.log
 ```
 
 集群结果默认输出到：
-- `/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result.xlsx`
-- `/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result.csv`
-- `/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/out/logs/pipeline.log`
+- `/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.xlsx`
+- `/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/biometric_extracted_result_gvn.csv`
+- `/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.xlsx`
+- `/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/extraction_runtime_status.csv`
+- `/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/out/logs/pipeline_gvn.log`
 
 
 ## 主要文件说明
@@ -280,6 +341,7 @@ tail -f /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_
 - `biometric_extractor/postprocess.py`：结果解析、清洗、标准化
 - `biometric_extractor/io_utils.py`：输入输出处理
 - `biometric_extractor/logging_utils.py`：日志初始化
+- `biometric_extractor/status_table.py`：运行状态表生成、状态汇总与失败原因归类
 
 ## 多国家记录说明
 

@@ -24,7 +24,7 @@ def read_input_rows(excel_path: Path) -> pd.DataFrame:
     return df
 
 
-def save_output(rows: List[dict], output_excel: Path, output_csv: Path) -> None:
+def save_output(rows: List[dict], output_excel: Path, output_csv: Path) -> pd.DataFrame:
     output_excel.parent.mkdir(parents=True, exist_ok=True)
 
     out_df = pd.DataFrame(rows)
@@ -36,3 +36,4 @@ def save_output(rows: List[dict], output_excel: Path, output_csv: Path) -> None:
 
     out_df.to_excel(output_excel, index=False)
     out_df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+    return out_df

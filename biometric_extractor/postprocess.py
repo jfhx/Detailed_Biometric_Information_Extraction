@@ -88,8 +88,9 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
         "source_url": ["url", "source"],
         "location": ["event_location", "occurrence_location"],
         "continent": ["event_continent"],
-        "country": ["event_country", "location_country"],
-        "province": ["event_province", "location_province"],
+        "pathogen_old": ["pathogen"],
+        "country_old": ["country", "event_country", "location_country"],
+        "province_old": ["province", "event_province", "location_province"],
         "original_location": [
             "original location",
             "original_location ",
@@ -97,7 +98,8 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
             "source_location",
             "infection_origin_location",
         ],
-        "original_country": [
+        "original_country_old": [
+            "original_country",
             "original country",
             "source_country",
             "infection_origin_country",
@@ -107,7 +109,8 @@ def _normalize_record(record: Dict[str, Any]) -> Dict[str, str]:
             "spread_location",
             "destination_location",
         ],
-        "imported_country": [
+        "imported_country_old": [
+            "imported_country",
             "imported country",
             "spread_country",
             "destination_country",

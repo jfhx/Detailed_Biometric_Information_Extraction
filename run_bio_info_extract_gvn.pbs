@@ -1,16 +1,16 @@
 #!/bin/bash
 # ===================== PBS Resource Configuration (Do not modify) =====================
 #PBS -N bio_info_extract
-#PBS -q batch
-#PBS -l nodes=node02.chess:ppn=100
-#PBS -l walltime=72:00:00
-#PBS -o /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run_gvn.log
-#PBS -e /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_gvn.log
+#PBS -q fat
+#PBS -l nodes=node01.chess:ppn=10
+#PBS -l walltime=100:00:00
+#PBS -o /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_run_gvn.log
+#PBS -e /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_error_gvn.log
 
 set -euo pipefail
 
 # ===================== Runtime Configuration =====================
-PROJECT_DIR="/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction"
+PROJECT_DIR="/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction"
 INPUT_FILE="${PROJECT_DIR}/source_text_report_gvn.xlsx"
 OUTPUT_DIR="${PROJECT_DIR}/out"
 
@@ -35,7 +35,7 @@ fi
 mkdir -p "${OUTPUT_DIR}/logs"
 
 echo "Running location-based outbreak extraction schema..."
-echo "Output fields include: location, continent, country, province, original_location, original_country, imported_location, imported_country"
+echo "Output fields include: pathogen_old, location, continent, country_old, province_old, original_location, original_country_old, imported_location, imported_country_old, event_type"
 
 # 4. Run Python script (\ must be the LAST character of each line, NO SPACES AFTER \)
 python main.py \
@@ -43,6 +43,8 @@ python main.py \
 --output-excel "${OUTPUT_DIR}/biometric_extracted_result_gvn.xlsx" \
 --output-csv "${OUTPUT_DIR}/biometric_extracted_result_gvn.csv" \
 --log-file "${OUTPUT_DIR}/logs/pipeline_gvn.log" \
+--status-excel "${OUTPUT_DIR}/extraction_runtime_status.xlsx" \
+--status-csv "${OUTPUT_DIR}/extraction_runtime_status.csv" \
 --endpoint "http://159.226.80.101:1045/v1/chat/completions" \
 --model "DeepSeek-V3" \
 --timeout-seconds 600 \
@@ -52,5 +54,7 @@ python main.py \
 
 echo "Excel output: ${OUTPUT_DIR}/biometric_extracted_result_gvn.xlsx"
 echo "CSV output: ${OUTPUT_DIR}/biometric_extracted_result_gvn.csv"
+echo "Runtime status Excel: ${OUTPUT_DIR}/extraction_runtime_status.xlsx"
+echo "Runtime status CSV: ${OUTPUT_DIR}/extraction_runtime_status.csv"
 echo "Pipeline log: ${OUTPUT_DIR}/logs/pipeline_gvn.log"
 echo "PBS job completed successfully."

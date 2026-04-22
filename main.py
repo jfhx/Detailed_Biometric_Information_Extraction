@@ -21,7 +21,7 @@ def build_args():
         default=(
             "C:/Users/imcas/Desktop/"
             "Detailed_Biometric_Information_Extraction"
-            "/source_text_report.xlsx"
+            "/source_text_report_gvn.xlsx"
         ),
         help=(
             "Input Excel path (must include columns: data_source, "
@@ -67,6 +67,26 @@ def build_args():
         help="Log file path.",
     )
     parser.add_argument(
+        "--status-excel",
+        type=str,
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction/out"
+            "/extraction_runtime_status.xlsx"
+        ),
+        help="Runtime status Excel path for concise frontend display records.",
+    )
+    parser.add_argument(
+        "--status-csv",
+        type=str,
+        default=(
+            "C:/Users/imcas/Desktop/"
+            "Detailed_Biometric_Information_Extraction/out"
+            "/extraction_runtime_status.csv"
+        ),
+        help="Runtime status CSV path for concise frontend display records.",
+    )
+    parser.add_argument(
         "--endpoint",
         type=str,
         default="http://159.226.80.101:1045/v1/chat/completions",
@@ -81,13 +101,13 @@ def build_args():
     parser.add_argument(
         "--timeout-seconds",
         type=int,
-        default=120,
+        default=600,
         help="HTTP timeout (seconds) for web and LLM calls.",
     )
     parser.add_argument(
         "--max-retries",
         type=int,
-        default=2,
+        default=3,
         help="Retry count for LLM call failures.",
     )
     parser.add_argument(
@@ -108,6 +128,21 @@ def build_args():
         default=0,
         help="Process only first N URLs (0 means all).",
     )
+    parser.add_argument(
+        "--record-data-type",
+        type=str,
+        default="",
+        help=(
+            "Override runtime status table data type, e.g. "
+            "unstructured/semi-structured/structured."
+        ),
+    )
+    parser.add_argument(
+        "--record-access-method",
+        type=str,
+        default="",
+        help="Override runtime status table access method, e.g. crawl/API.",
+    )
     return parser.parse_args()
 
 
@@ -118,8 +153,12 @@ def main() -> None:
         output_excel=Path(args.output_excel),
         output_csv=Path(args.output_csv),
         log_file=Path(args.log_file),
+        status_excel=Path(args.status_excel),
+        status_csv=Path(args.status_csv),
         llm_endpoint=args.endpoint,
         llm_model=args.model,
+        record_data_type=args.record_data_type,
+        record_access_method=args.record_access_method,
         timeout_seconds=args.timeout_seconds,
         max_chars_per_source=args.max_chars_per_source,
         max_retries=args.max_retries,

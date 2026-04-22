@@ -4,13 +4,13 @@
 #PBS -q fat
 #PBS -l nodes=node01.chess:ppn=10
 #PBS -l walltime=72:00:00
-#PBS -o /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_run_3000_more.log
-#PBS -e /data7/sunxiuqiang/Detailed_Biometric_Information_Extraction/task_error_3000_more.log
+#PBS -o /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_run_3000_more.log
+#PBS -e /data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction/task_error_3000_more.log
 
 set -euo pipefail
 
 # ===================== Runtime Configuration =====================
-PROJECT_DIR="/data7/sunxiuqiang/Detailed_Biometric_Information_Extraction"
+PROJECT_DIR="/data7/sunxiuqiang/nhp/Detailed_Biometric_Information_Extraction"
 INPUT_FILE="${PROJECT_DIR}/source_text_report_3000_more.xlsx"
 OUTPUT_DIR="${PROJECT_DIR}/out"
 
@@ -35,7 +35,7 @@ fi
 mkdir -p "${OUTPUT_DIR}/logs"
 
 echo "Running location-based outbreak extraction schema (limit 0 test)..."
-echo "Output fields include: location, continent, country, province, original_location, original_country, imported_location, imported_country"
+echo "Output fields include: pathogen_old, location, continent, country_old, province_old, original_location, original_country_old, imported_location, imported_country_old, event_type"
 
 # 4. Run Python script (\ must be the LAST character of each line, NO SPACES AFTER \)
 python main.py \
@@ -43,6 +43,8 @@ python main.py \
 --output-excel "${OUTPUT_DIR}/biometric_extracted_result_3000_more.xlsx" \
 --output-csv "${OUTPUT_DIR}/biometric_extracted_result_3000_more.csv" \
 --log-file "${OUTPUT_DIR}/logs/pipeline_3000_more.log" \
+--status-excel "${OUTPUT_DIR}/extraction_runtime_status_3000_more.xlsx" \
+--status-csv "${OUTPUT_DIR}/extraction_runtime_status_3000_more.csv" \
 --endpoint "http://159.226.80.101:1045/v1/chat/completions" \
 --model "DeepSeek-V3" \
 --timeout-seconds 600 \
@@ -52,5 +54,7 @@ python main.py \
 
 echo "Excel output: ${OUTPUT_DIR}/biometric_extracted_result_3000_more.xlsx"
 echo "CSV output: ${OUTPUT_DIR}/biometric_extracted_result_3000_more.csv"
+echo "Runtime status Excel: ${OUTPUT_DIR}/extraction_runtime_status_3000_more.xlsx"
+echo "Runtime status CSV: ${OUTPUT_DIR}/extraction_runtime_status_3000_more.csv"
 echo "Pipeline log: ${OUTPUT_DIR}/logs/pipeline_3000_more.log"
 echo "PBS test job (--limit 0) completed successfully."
